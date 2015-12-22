@@ -3,6 +3,7 @@
 
 setwd("D:/projects/telstra")
 library(reshape2)
+library(xgboost)
 
 # Load data ---------------------------------------------------------------------------------------------------------
 
@@ -47,14 +48,19 @@ testM <- merge(testM, severity_typeW, by="id")
 # Model trainings --------------------------------------------------------------------------------------------------
 # Xgboost fitting ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-xgb_train_feature <- cbind(location = colsplit(trainM$location," ",names=c("location_prefix","location_id"))[,2],
-                           data.matrix(trainM[,-c(1,2,3)]))
-xgb_train_response <- trainM[,3]
+xgb_train <- xgb.DMatrix(data=cbind(location = colsplit(trainM$location," ",
+                                                        names=c("location_prefix","location_id"))[,2],
+                           data.matrix(trainM[,-c(1,2,3)])),
+                         label=trainM[,3])
                            
 xgb_param <- list("objective" = "multi:softprob",
                   "eval_metric" = "mlogloss",
-                  "num_class" = 3)
-
+                  "num_class" = 3,
+			            "max_depth" = 6,
+			            "colsample_bytree" = 1,
+			            "eta" = 0.1,
+			            "min_child_weight" = 1)
+        
 xgb_cv <- xgb.cv(param=xgb_param, data=xgb_train_feature, label=xgb_train_response,
                  nfold=5, nrounds=500)
 
@@ -63,8 +69,7 @@ xgb_nround <- which(xgb_cv$test.mlogloss.mean==min(xgb_cv$test.mlogloss.mean))
 
 # Xgboost fitting
 
-xgb_fit <- xgboost(data=xgb_train_feature, label=xgb_train_response,
-                   param=xgb_param, nrounds=xgb_nround)
+xgb_fit <- xgb.train(data=xgb_train, param=xgb_param, nrounds=xgb_nround, verbose = 2)
 
 # Xgboost predict
 
